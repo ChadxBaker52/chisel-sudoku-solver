@@ -1,12 +1,12 @@
 ThisBuild / scalaVersion     := "2.13.14"
 ThisBuild / version          := "0.4.0"
-ThisBuild / organization     := "%ORGANIZATION%"
+ThisBuild / organization     := "com.github.chadxbaker52"
 
 val chiselVersion = "3.6.1"
 
 lazy val root = (project in file("."))
   .settings(
-    name := "%NAME%",
+    name := "chisel-sudoku-solver",
     libraryDependencies ++= Seq(
       "edu.berkeley.cs" %% "chisel3" % chiselVersion,
       "edu.berkeley.cs" %% "chiseltest" % "0.6.2" % "test"
