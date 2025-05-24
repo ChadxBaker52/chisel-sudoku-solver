@@ -6,6 +6,8 @@ import chisel3.util._
 class SudokuProcessor() extends Module {
     val io = IO(new Bundle {
         val inGrid = Input(Vec(9*9, UInt(9.W)))
+        val mode = Input(UInt(2.W))
+        val changed = Output(Bool())
         val outGrid = Output(Vec(9*9, UInt(9.W)))
     })
     // 27 9-bit vectors for Candidates
@@ -16,9 +18,8 @@ class SudokuProcessor() extends Module {
     // 27 Vectors full of 9 4-bit vectors used for Hidden Singles
     val unsolvedCount = RegInit(VecInit(Seq.fill(27, 9)(0.U(4.W))))
 
-    // Set Condidate Masks
-    def setCandidates(cells: Vec[UInt]): Unit = {
-
+    // Set Candidates and find singles
+    def getCandidatesAndSingles(cells: Vec[UInt]): (Vec[UInt], Bool) = {
         // initializing Masks
         for (row <- 0 until 9) {
             for (col <- 0 until 9) {
@@ -32,27 +33,31 @@ class SudokuProcessor() extends Module {
                 subMask(boxInd) := subMask(boxInd) | cell
             }
         }
-    }
     
-    // Update Candidates and find Singles
-    def getSingles(cells: Vec[UInt]): Vec[UInt] = {
+        // find Singles
         val updatedCells = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+        val changed = WireInit(Bool(false.B))
 
         for (row <- 0 until 9) {
             for (col <- 0 until 9) {
                 val boxInd = row + (col / 3)
                 val cell = cells((row*9) + col)
                 val finalMask = ~(rowMask(row) | colMask(col) | subMask(boxInd))
+                val prune = cell & finalMask
 
-                updatedCells((row*9) + col) := cell & finalMask
+                updatedCells((row*9) + col) := prune
+
+                when (prune =/= c) {
+                    changed := true.B
+                }
             }
         }
 
-        updatedCells
+        (updatedCells, changed)
     }
 
     // Find Hidden Singles
-    def checkHiddenSingles(cells: Vec[UInt]): Unit = {
+    def getHiddenSingles(cells: Vec[UInt]): (Vec[UInt], Bool()) = {
         // zero at some point each time function is used
         // for (i <- 0 until 27) {
         //     for (j <- 0 until 9) {
@@ -124,6 +129,7 @@ class SudokuProcessor() extends Module {
 
         // if hidden mask and cell mask 
         val nextCells = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+        val changed = WireInit(Bool())
 
         // Updating cells by row
         for (row <- 0 until 9) {
@@ -132,6 +138,7 @@ class SudokuProcessor() extends Module {
                 val mask = hRowMask(row)
                 when (mask & cell =/= 0.U) {
                     nextCells((row*9) + col) := mask
+                    changed := true.B
                 }
             }
         }
@@ -143,6 +150,7 @@ class SudokuProcessor() extends Module {
                 val mask = hColMask(col)
                 when (mask & cell =/= 0.U) {
                     nextCells((row*9) + col) := mask
+                    changed := true.B
                 }
             }
         }
@@ -155,11 +163,27 @@ class SudokuProcessor() extends Module {
                 val mask = hSubMask(sub)
                 when (mask & cell =/= 0.U) {
                     nextCells((row*9) + col) := mask
+                    changed := true.B
                 }
             }
         }
+
+        (nextCells, changed)
     }
 
-    val (rowMask, colMask, subMask) = setCandidates(io.inGrid)
-    io.outGrid := getSingles(io.inGrid)
+    val changed = Reg(Bool())
+    val newCells = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+
+    when (mode === 0.U) {
+        (newCells, changed) = getCandidatesAndSingles(io.inGrid)
+    } .otherwise (mode === 1.U) (
+        (newCells, changed) = getHiddenSingles(io.inGrid)
+    ) 
+    // DFS
+    // .otherwise (mode === 2.U) {
+
+    // }
+
+    io.changed := changed
+    io.outGrid := newCells
 }
