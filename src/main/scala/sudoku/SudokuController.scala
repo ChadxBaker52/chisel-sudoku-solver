@@ -10,7 +10,7 @@ class SudokuController() extends Module {
         val solved = Input(Bool())
         val inGrid = Input(Vec(9*9, UInt(9.W)))
         val loadGrid = Output(Bool())
-        val done = Ouput(Bool())
+        val done = Output(Bool())
         val mode = Output(UInt(2.W))
         val cycleCount = Output(UInt())
         val outGrid = Output(Vec(9*9, UInt(9.W)))
@@ -21,6 +21,8 @@ class SudokuController() extends Module {
     }
 
     val state = RegInit(pState.Idle)
+    
+    val grid = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
 
     switch (state) {
         is (pState.Idle) {
@@ -49,8 +51,8 @@ class SudokuController() extends Module {
                 state := pState.Done
             }
         }
-        is (pState.Done) {
-            io.done = true.B
-        }
+        // is (pState.Done) {
+
+        // }
     }
 }
