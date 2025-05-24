@@ -26,12 +26,13 @@ class SudokuGrid(val gridSize: Int = 9) extends Bundle {
     }
 }
 
-class SudokuGridModule(val gridSize: Int = 9) extends Module {
+class SudokuModule(val gridSize: Int = 9) extends Module {
     val io = IO(new Bundle {
+        val inGrid = Input(new SudokuGrid(gridSize))
         val outGrid = Output(new SudokuGrid(gridSize))
     })
 
-    val grid = Reg(new SudokuGrid(gridSize))
+    val grid = io.inGrid
 
     io.outGrid := grid
 }
