@@ -16,7 +16,11 @@ class SudokuProcessor() extends Module {
     val subMask = WireInit(VecInit(Seq.fill(9)(0.U(9.W))))
 
     // 27 Vectors full of 9 4-bit vectors used for Hidden Singles
-    val unsolvedCount = RegInit(VecInit(Seq.fill(27, 9)(0.U(4.W))))
+    val unsolvedCount = RegInit(
+        VecInit(Seq.fill(27) {
+            VecInit(Seq.fill(9)(0.U(4.W)))
+        })
+    )
 
     // Set Candidates and find singles
     def getCandidatesAndSingles(cells: Vec[UInt]): (Vec[UInt], Bool) = {
@@ -36,7 +40,7 @@ class SudokuProcessor() extends Module {
     
         // find Singles
         val updatedCells = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
-        val changed = WireInit(Bool(false.B))
+        val changed = WireInit(false.B)
 
         for (row <- 0 until 9) {
             for (col <- 0 until 9) {
@@ -47,7 +51,7 @@ class SudokuProcessor() extends Module {
 
                 updatedCells((row*9) + col) := prune
 
-                when (prune =/= c) {
+                when (prune =/= cell) {
                     changed := true.B
                 }
             }
@@ -57,7 +61,7 @@ class SudokuProcessor() extends Module {
     }
 
     // Find Hidden Singles
-    def getHiddenSingles(cells: Vec[UInt]): (Vec[UInt], Bool()) = {
+    def getHiddenSingles(cells: Vec[UInt]): (Vec[UInt], Bool) = {
         // zero at some point each time function is used
         // for (i <- 0 until 27) {
         //     for (j <- 0 until 9) {
@@ -70,7 +74,7 @@ class SudokuProcessor() extends Module {
             val mask = rowMask(row).asBools
             for (i <- 0 until 9) {
                 when (mask(i)) {
-                    unsolvedCount(row)(i) := unsolvedCount(row)(i) + 1
+                    unsolvedCount(row)(i) := unsolvedCount(row)(i) + 1.U
                 }
             }
         }
@@ -80,7 +84,7 @@ class SudokuProcessor() extends Module {
             val mask = colMask(col).asBools
             for (i <- 0 until 9) {
                 when (mask(i)) {
-                    unsolvedCount(col)(i) := unsolvedCount(col)(i) + 1
+                    unsolvedCount(col)(i) := unsolvedCount(col)(i) + 1.U
                 }
             }
         }
@@ -90,7 +94,7 @@ class SudokuProcessor() extends Module {
             val mask = subMask(sub).asBools
             for (i <- 0 until 9) {
                 when (mask(i)) {
-                    unsolvedCount(sub)(i) := unsolvedCount(sub)(i) + 1
+                    unsolvedCount(sub)(i) := unsolvedCount(sub)(i) + 1.U
                 }
             }
         }
@@ -129,14 +133,14 @@ class SudokuProcessor() extends Module {
 
         // if hidden mask and cell mask 
         val nextCells = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
-        val changed = WireInit(Bool())
+        val changed = RegInit(false.B)
 
         // Updating cells by row
         for (row <- 0 until 9) {
             for (col <- 0 until 9) {
                 val cell = cells((row*9) + col)
                 val mask = hRowMask(row)
-                when (mask & cell =/= 0.U) {
+                when ((mask & cell) =/= 0.U) {
                     nextCells((row*9) + col) := mask
                     changed := true.B
                 }
@@ -148,7 +152,7 @@ class SudokuProcessor() extends Module {
             for (row <- 0 until 9) {
                 val cell = cells((row*9) + col)
                 val mask = hColMask(col)
-                when (mask & cell =/= 0.U) {
+                when ((mask & cell) =/= 0.U) {
                     nextCells((row*9) + col) := mask
                     changed := true.B
                 }
@@ -161,7 +165,7 @@ class SudokuProcessor() extends Module {
                 val cell = cells((row*9) + col)
                 val sub = row + (col / 3)
                 val mask = hSubMask(sub)
-                when (mask & cell =/= 0.U) {
+                when ((mask & cell) =/= 0.U) {
                     nextCells((row*9) + col) := mask
                     changed := true.B
                 }
@@ -171,14 +175,14 @@ class SudokuProcessor() extends Module {
         (nextCells, changed)
     }
 
-    val changed = Reg(Bool())
+    val changed = RegInit(false.B)
     val newCells = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
 
-    when (mode === 0.U) {
-        (newCells, changed) = getCandidatesAndSingles(io.inGrid)
-    } .otherwise (mode === 1.U) (
-        (newCells, changed) = getHiddenSingles(io.inGrid)
-    ) 
+    // when (io.mode === 0.U) {
+    //     (newCells, changed) := getCandidatesAndSingles(io.inGrid)
+    // } .elsewhen (io.mode === 1.U) (
+    //     (newCells, changed) := getHiddenSingles(io.inGrid)
+    // ) 
     // DFS
     // .otherwise (mode === 2.U) {
 
