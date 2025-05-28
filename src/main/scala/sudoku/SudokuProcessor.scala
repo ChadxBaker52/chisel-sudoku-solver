@@ -16,14 +16,10 @@ class SudokuProcessor() extends Module {
     val subMask = WireInit(VecInit(Seq.fill(9)(0.U(9.W))))
 
     // 27 Vectors full of 9 4-bit vectors used for Hidden Singles
-    val unsolvedCount = RegInit(
-        VecInit(Seq.fill(27) {
-            VecInit(Seq.fill(9)(0.U(4.W)))
-        })
-    )
+    val unsolvedCount = RegInit(VecInit(Seq.fill(27)(VecInit(Seq.fill(9)(0.U(4.W))))))
 
     // Set Candidates and find singles
-    def getCandidatesAndSingles(cells: Vec[UInt]): (Vec[UInt], Bool) = {
+    def getCandidatesAndSingles(cells: Vec[UInt]): Vec[UInt] = {
         // initializing Masks
         for (row <- 0 until 9) {
             for (col <- 0 until 9) {
@@ -57,11 +53,11 @@ class SudokuProcessor() extends Module {
             }
         }
 
-        (updatedCells, changed)
+        updatedCells
     }
 
     // Find Hidden Singles
-    def getHiddenSingles(cells: Vec[UInt]): (Vec[UInt], Bool) = {
+    def getHiddenSingles(cells: Vec[UInt]): Vec[UInt] = {
         // zero at some point each time function is used
         // for (i <- 0 until 27) {
         //     for (j <- 0 until 9) {
@@ -131,7 +127,6 @@ class SudokuProcessor() extends Module {
             hSubMask(sub) := bits.asUInt
         }
 
-        // if hidden mask and cell mask 
         val nextCells = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
         val changed = RegInit(false.B)
 
@@ -172,22 +167,76 @@ class SudokuProcessor() extends Module {
             }
         }
 
-        (nextCells, changed)
+        nextCells
     }
 
-    val changed = RegInit(false.B)
-    val newCells = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+    def dfs(start: Bool, empty: Bool, valid: Bool, candidate: Bool, traversed: Bool) = {
+        val cellIdx = RegInit(0.U(log2Ceil(81).W))
+        val cell = io.inGrid(cellIdx)
 
-    // when (io.mode === 0.U) {
-    //     (newCells, changed) := getCandidatesAndSingles(io.inGrid)
-    // } .elsewhen (io.mode === 1.U) (
-    //     (newCells, changed) := getHiddenSingles(io.inGrid)
-    // ) 
+        object dfsState extends ChiselEnum {
+            val idle, findEmpty, checkValid, backtrack, done = Value
+        }
+
+        val state = RegInit(dfsState.Idle)
+
+        // Go to first cell
+        switch (state) {
+            is (dfsState.idle) {
+                // initialize everything
+                when (start) {
+                    state := findEmpty
+                }
+            }
+            is (dfsState.findEmtpy) {
+                when (empty) {
+                    state := dfsState.checkValid
+                } .elsewhen (~traversed) {
+                    state := dfsState.findEmpty
+                } .otherwise {
+                    state := dfsState.done
+                }
+            }
+            is (dfsState.checkValid) {
+                when (valid) {
+                    state := dfsState.findEmpty
+                } .elsewhen (candidate) {
+                    state := dfsState.checkValid
+                } .otherwise {
+                    state := dfsState.backtrack
+                }
+            }
+            is (dfsState.backtrack) {
+                when (candidate) {
+                    state := dfsState.checkValid
+                } .elsewhen (cellIdx === 0.U) {   // check when it has backtracked too far
+                    state := dfsState.done
+                } .otherwise {
+                    state := dfsState.backtrack
+                }
+            }
+            // is (dfsState.done) {
+
+            // }
+        }
+    }
+
+    val singleCells = getCandidatesAndSingles(io.inGrid)
+    val hiddenCells = getHiddenSingles(io.inGrid)
+
+    val newCells = 0.U.asTypeOf(new SudokuGrid(gridSize))
+
+
+    when (io.mode === 0.U) {
+        newCells := singleCells
+    } .elsewhen (io.mode === 1.U) (
+        newCells := hiddenCells
+    ) 
     // DFS
-    // .otherwise (mode === 2.U) {
+    // .elsewhen (mode === 2.U) {
 
     // }
 
-    io.changed := changed
+    io.changed := false.B
     io.outGrid := newCells
 }
