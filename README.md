@@ -11,7 +11,7 @@ This repository contains the beginnings of a parameterized Sudoku solver impleme
 ## Next Steps
 1. **Scala Sudoku Model**: Implement a pure-Scala backtracking Sudoku solver for reference (`SudokuModel`) and add unit tests against known puzzles.  
 2. **Integration**: Wire the `SudokuProcessor` under control of `SudokuController`.  
-3. **Testing**: Develop comprehensive `ChiselTest` suites for each module and an end-to-end test comparing hardware output against the Scala model.
+3. **Testing**: Develop comprehensive `ChiselTest` for each module, testing functionality by knowing correct output.
 
 ## Build & Test
 **Prerequisites:** Java 11+, SBT
