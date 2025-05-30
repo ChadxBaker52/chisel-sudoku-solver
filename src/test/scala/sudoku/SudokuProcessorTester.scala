@@ -43,41 +43,92 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
     puzzle
   }
 
+  def doProcessorTest(dut: SudokuProcessor, puzzle: Array[Int], inGrid: Array[UInt], mode: Int): (Array[Int], Array[UInt], Int, Boolean) = {
+    for (i <- 0 until 81) {
+      dut.io.inGrid(i).poke(inGrid(i))
+    }
+
+    dut.io.mode.poke(mode.U)
+    dut.clock.step()
+
+    val expectedOut: Array[Int] = mode match {
+      case 1 => SudokuProcessorModel.solveSingles(puzzle)
+      // case 2 => SudokuProcessorModel.solveHiddenSingles(puzzle)
+      case 2 => SudokuProcessorModel.dfsSolveSudoku(puzzle) match {
+        case Some(solution) => solution
+        case None => throw new RuntimeException("DFS failed to solve puzzle")
+      }
+      case _ => throw new IllegalArgumentException(s"Unknown mode $mode")
+    }
+
+    val outPuzzle: Array[Int] = (0 until 81).map { i =>
+      val value = dut.io.outGrid(i).peek().litValue
+      oneHotToDigit(value)
+    }.toArray
+
+    val outGrid: Array[UInt] = outPuzzle.map {
+      case d if d >= 1 && d <= 9 => (1 << (d - 1)).U(9.W)
+      case _ => "b111111111".U(9.W)
+    }
+
+    println("=== Output Chisel Grid ===")
+    for (i <- 0 until 81) {
+      val digit = outPuzzle(i)
+      print(s"$digit ")
+      if ((i + 1) % 9 == 0) println()
+    }
+
+    println("=== Output Scala Grid ===")
+    for (i <- 0 until 81) {
+      val digit = expectedOut(i)
+      print(s"$digit ")
+      if ((i + 1) % 9 == 0) println()
+    }
+
+    val changed = (puzzle zip outPuzzle).exists { case (oldV, newV) => 
+      oldV != newV 
+      println()
+    }
+
+    val nextMode = if (changed) mode else mode + 1
+    (expectedOut, outGrid, nextMode, changed)
+  }
+
   behavior of "SudokuProcessor" 
-  // it should "test dfs on empty grid" in {
-  //   test(new SudokuProcessor()) { dut =>
-  //     dut.clock.setTimeout(0)
-  //     val puzzle  = Array.fill(81)("b111111111".U(9.W))
+  it should "test dfs on empty grid" in {
+    test(new SudokuProcessor()) { dut =>
+      dut.clock.setTimeout(0)
+      val puzzle  = Array.fill(81)("b111111111".U(9.W))
 
-  //     for (i <- 0 until 81) dut.io.inGrid(i).poke(puzzle(i))
+      for (i <- 0 until 81) dut.io.inGrid(i).poke(puzzle(i))
 
-  //     dut.io.mode.poke(0.U)
-  //     dut.clock.step(1)
+      dut.io.mode.poke(0.U)
+      dut.clock.step(1)
 
-  //     dut.io.mode.poke(1.U)
-  //     dut.clock.step(1)
+      dut.io.mode.poke(1.U)
+      dut.clock.step(1)
 
-  //     dut.io.mode.poke(2.U)
-  //     dut.clock.step(1)
+      dut.io.mode.poke(2.U)
+      dut.clock.step(1)
 
-  //     dut.io.mode.poke(3.U)
-  //     var cycles = 0
-  //     val maxCycles = 10000
+      dut.io.mode.poke(3.U)
+      var cycles = 0
+      val maxCycles = 10000
 
-  //     while (!dut.io.done.peek().litToBoolean && cycles < maxCycles) {
-  //       dut.clock.step(1)
-  //       cycles += 1
-  //     }
+      while (!dut.io.done.peek().litToBoolean && cycles < maxCycles) {
+        dut.clock.step(1)
+        cycles += 1
+      }
 
-  //     if (cycles >= maxCycles) {
-  //       printGrid(dut.io.outGrid)
-  //       fail("Solver did not complete in time")
-  //     } else {
-  //       println(s"Solved in $cycles cycles")
-  //     }
-  //     printGrid(dut.io.outGrid)
-  //   }
-  // }
+      if (cycles >= maxCycles) {
+        printGrid(dut.io.outGrid)
+        fail("Solver did not complete in time")
+      } else {
+        println(s"Solved in $cycles cycles")
+      }
+      printGrid(dut.io.outGrid)
+    }
+  }
 
   it should "test singles" in {
     test(new SudokuProcessor()) { dut => 
@@ -144,8 +195,6 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
     test(new SudokuProcessor()) { dut => 
       dut.clock.setTimeout(0)
 
-      dut.clock.setTimeout(0)
-
       val puzzle = Array(
         5,3,0, 0,7,0, 0,0,0,
         6,0,0, 1,9,5, 0,0,0,
@@ -201,6 +250,57 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
         }
       }
 
+    }
+  }
+
+  it should "test singles and dfs" in {
+    test(new SudokuProcessor()) { dut =>
+      dut.clock.setTimeout(0)
+
+      val puzzle = Array(
+        4,0,0, 0,7,8, 0,0,0,
+        0,5,1, 3,9,0, 0,0,0,
+        0,6,0, 4,2,0, 0,0,0,
+
+        0,0,8, 0,0,0, 0,0,0,
+        9,0,2, 0,0,0, 3,0,0,
+        0,0,5, 6,0,0, 0,0,1,
+
+        0,0,0, 5,0,0, 0,0,6,
+        0,0,0, 2,0,0, 1,0,4,
+        0,0,3, 0,0,0, 0,0,7
+      )
+
+      val chiselPuzzle = puzzle.map {
+        case d if d >= 1 && d <= 9 => (1 << (d - 1)).U(9.W)
+        case 0 => "b111111111".U(9.W)
+      }
+
+      var currentPuzzle = puzzle
+      var currentGrid = chiselPuzzle
+      var mode = 1
+      val maxMode = 3
+      val maxTries = 1000
+      var tries = 0
+
+      while (mode <= maxMode && tries < maxTries) {
+        println(s"\n----- cycle $tries -----\n")
+        val (nextPuzzle, nextGrid, nextMode, changed) = doProcessorTest(dut, currentPuzzle, currentGrid, mode)
+        println(s"\nmode: $mode    changed: $changed\n")
+        currentPuzzle = nextPuzzle
+        currentGrid = nextGrid
+        mode = nextMode
+        tries += 1
+      }
+
+      // Final assertion
+      for (i <- 0 until 81) {
+        val actual = oneHotToDigit(dut.io.outGrid(i).peek().litValue)
+        val expected = currentPuzzle(i)
+        if (expected != 0) {
+          assert(actual == expected, s"Mismatch at cell $i: expected $expected, got $actual")
+        }
+      }
     }
   }
 }
