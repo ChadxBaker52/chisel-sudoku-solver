@@ -17,60 +17,25 @@ class SudokuProcessor() extends Module {
     val nextGrid = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
     // main grid
     val refGrid = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
-
-    // hate this please change!!!
-    val sampled = RegInit(true.B)
-    when (sampled) {
-        refGrid  := io.inGrid
-        nextGrid := io.inGrid
-        sampled  := false.B
-    }
+    nextGrid := io.inGrid
 
     // 27 9-bit vectors for Candidates
     val rowMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
     val colMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
     val subMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
 
-    // 27 Vectors full of 9 4-bit vectors used for Hidden Singles
-    val unsolvedCount = RegInit(VecInit(Seq.fill(27)(VecInit(Seq.fill(9)(0.U(4.W))))))
-
-
-    // DFS Variables
-    val cellIdx = RegInit(0.U(log2Ceil(81).W))
-    val cell = nextGrid(cellIdx)
-    val candPtr = RegInit(VecInit(Seq.fill(81)(0.U(4.W))))
-    val cellStack = Reg(Vec(81, UInt(7.W)))
-    val sp = RegInit(0.U(7.W))
-    val dfsDone = RegInit(false.B)
-    val cand = candPtr(cellIdx)
-    // val candValid = cand > 0.U && cand <= 9.U
-    // val safeCand = Mux(candValid, cand - 1.U, 0.U)
-
-    val empty = ~isOneHot(cell)
-    val candOH = UIntToOH(cand)(8, 0)
-    val valid = isValidCell(cellIdx, candOH)
-    val hasCand = candPtr(cellIdx) < 8.U
-    val traversed = cellIdx === 81.U
-
-    
-    object dfsState extends ChiselEnum {
-        val idle, findEmpty, checkValid, backtrack, done = Value
-    }
-
-    val state = RegInit(dfsState.idle)
-
     // find singles
     def pruneSingles() = {
         // new 27 9-bit vectors for Candidates
         val nextRowMask = WireInit(
             VecInit((0 until 9).map { row =>
-                val rowCells = (0 until 9).map(col => nextGrid(row*9 + col))
+                val rowCells = (0 until 9).map(col => grid(row*9 + col))
                 rowCells.map(cell => Mux(isOneHot(cell), cell, 0.U)).reduce(_|_)
             })
         )
         val nextColMask = WireInit(
             VecInit((0 until 9).map { col =>
-                val colCells = (0 until 9).map(row => nextGrid(row*9 + col))
+                val colCells = (0 until 9).map(row => grid(row*9 + col))
                 colCells.map(cell => Mux(isOneHot(cell), cell, 0.U)).reduce(_|_)
             })
         )
@@ -100,14 +65,30 @@ class SudokuProcessor() extends Module {
         rowMask := nextRowMask
         colMask := nextColMask
         subMask := nextSubMask
+        
+        refGrid := nextGrid
+    }
+
+
+    // 27 Vectors full of 9 4-bit vectors used for Hidden Singles
+    val unsolvedCount = RegInit(VecInit(Seq.fill(27)(VecInit(Seq.fill(9)(0.U(4.W))))))
+
+    // Counting cells in each row, col, and sub
+    for (row <- 0 until 9) {
+        for (col <- 0 until 9) {
+            val cell = grid(row * 9 + col).asBools
+            val sub = (row/3)*3 + col/3
+            for (i <- 0 until 9) {
+                when (cell(i)) {
+                    unsolvedCount(row)(i) := unsolvedCount(row)(i) + 1.U
+                    unsolvedCount(col+9)(i) := unsolvedCount(col+9)(i) + 1.U
+                    unsolvedCount(sub+18)(i) := unsolvedCount(sub+18)(i) + 1.U
+                }
+            }
+        }
     }
 
     def getHiddenSingles() = {
-        // initialize counters
-        for (r <- 0 until 27; i <- 0 until 9) {
-            unsolvedCount(r)(i) := 0.U
-        }
-
         // Create hidden masks
         val hRowMask = WireInit(VecInit(Seq.fill(9)(0.U(9.W))))
         val hColMask = WireInit(VecInit(Seq.fill(9)(0.U(9.W))))
@@ -202,6 +183,23 @@ class SudokuProcessor() extends Module {
         // update refGrid with new values
         refGrid := nextGrid
     }
+    
+    // DFS Variables
+    val cellIdx = RegInit(0.U(log2Ceil(81).W))
+    val cell = nextGrid(cellIdx)
+    val candPtr = RegInit(VecInit(Seq.fill(81)(0.U(4.W))))
+    val cellStack = Reg(Vec(81, UInt(7.W)))
+    val sp = RegInit(0.U(7.W))
+    val dfsDone = RegInit(false.B)
+    val cand = candPtr(cellIdx)
+    // val candValid = cand > 0.U && cand <= 9.U
+    // val safeCand = Mux(candValid, cand - 1.U, 0.U)
+
+    val empty = ~isOneHot(cell)
+    val candOH = UIntToOH(cand)(8, 0)
+    val valid = isValidCell(cellIdx, candOH)
+    val hasCand = candPtr(cellIdx) < 8.U
+    val traversed = cellIdx === 81.U
 
     def isValidCell(idx: UInt, candOH: UInt): Bool = {
         val row = idx / 9.U
@@ -318,11 +316,17 @@ class SudokuProcessor() extends Module {
             }
         }
     }
+    
+    object dfsState extends ChiselEnum {
+        val idle, findEmpty, checkValid, backtrack, done = Value
+    }
+
+    val state = RegInit(dfsState.idle)
 
     switch(io.mode) {
         is(1.U) {pruneSingles()}
-        is(2.U) {getHiddenSingles()}
-        is(3.U) {dfs()}
+        // is(2.U) {getHiddenSingles()}
+        is(2.U) {dfs()}
     }
     io.done := dfsDone
     io.outGrid := nextGrid
