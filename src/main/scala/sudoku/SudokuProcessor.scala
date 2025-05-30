@@ -39,17 +39,17 @@ class SudokuProcessor() extends Module {
     val cellIdx = RegInit(0.U(log2Ceil(81).W))
     val cell = nextGrid(cellIdx)
     val candPtr = RegInit(VecInit(Seq.fill(81)(0.U(4.W))))
-    val stack = Reg(Vec(81, UInt(7.W)))
+    val cellStack = Reg(Vec(81, UInt(7.W)))
     val sp = RegInit(0.U(7.W))
     val dfsDone = RegInit(false.B)
+    val cand = candPtr(cellIdx)
+    // val candValid = cand > 0.U && cand <= 9.U
+    // val safeCand = Mux(candValid, cand - 1.U, 0.U)
 
     val empty = ~isOneHot(cell)
-    val cand = candPtr(cellIdx)
-    val candValid = cand > 0.U && cand <= 9.U
-    val safeCand = Mux(candValid, cand - 1.U, 0.U)
-    val candOH = UIntToOH(safeCand)(8, 0)
+    val candOH = UIntToOH(cand)(8, 0)
     val valid = isValidCell(cellIdx, candOH)
-    val candidate = candPtr(cellIdx) < 8.U
+    val hasCand = candPtr(cellIdx) < 8.U
     val traversed = cellIdx === 81.U
 
     
@@ -253,8 +253,9 @@ class SudokuProcessor() extends Module {
     }
 
     def dfs() = {
-        printf(p"[DFS] state=$state | cellIdx=$cellIdx | cell=0x${Hexadecimal(cell)}\n")
-        printf(p"[DEBUG] empty=$empty valid=$valid candidate=$candidate traversed=$traversed cand=${candPtr(cellIdx)} candOH=0x${Hexadecimal(candOH)}\n")
+        // printf(p"[DFS] state=$state | cellIdx=$cellIdx | cell=0b${cell}\n")
+        // printf(p"[DEBUG] empty=$empty valid=$valid hasCand=$hasCand traversed=$traversed cand=${candPtr(cellIdx)}\n\n")
+        // printf("\n")
 
         // Go to first cell
         switch (state) {
@@ -268,9 +269,18 @@ class SudokuProcessor() extends Module {
                 state   := dfsState.findEmpty
             }
             is (dfsState.findEmpty) {
+                // val row = cellIdx / 9.U
+                // val col = cellIdx % 9.U
+                // val sub = (row/3.U) * 3.U + (col/3.U)
+                // printf("[MASKS]  ")
+                // printf(p"rowMask=0b${Binary(rowMask(row))}  ")   
+                // printf(p"colMask=0b${Binary(colMask(col))}  ")
+                // printf(p"subMask=0b${Binary(subMask(sub))}\n")
                 when (empty) {
-                    // found empty cell, see if valid
+                    // found empty cell
+                    // start at first candidate
                     candPtr(cellIdx) := 0.U
+                    // see if valid
                     state := dfsState.checkValid
                 } .elsewhen (~traversed) {
                     // try next cell
@@ -282,53 +292,63 @@ class SudokuProcessor() extends Module {
             }
             is (dfsState.checkValid) {
                 when (valid) {
+                    // printf(p"[CELL] cellIdx=0x${cellIdx} set to cand=0x${cand+1.U}\n")
                     nextGrid(cellIdx) := candOH
-                    stack(sp) := cellIdx
+                    cellStack(sp) := cellIdx
                     sp := sp + 1.U  
                     
-                    setCandidates(nextGrid)
-
-                    // candPtr(cellIdx) := 0.U
+                    // adding to masks
+                    val row = cellIdx / 9.U
+                    val col = cellIdx % 9.U
+                    val sub = (row/3.U) * 3.U + (col/3.U)
+                    rowMask(row) := rowMask(row) | candOH
+                    colMask(col) := colMask(col) | candOH
+                    subMask(sub) := subMask(sub) | candOH
 
                     // go to next cell
                     cellIdx := cellIdx + 1.U
 
                     // see if next cell is empty
                     state := dfsState.findEmpty
-                } .elsewhen (candidate) {
+                } .elsewhen (hasCand) {
                     // go to next candidate
                     candPtr(cellIdx) := candPtr(cellIdx) + 1.U
                     // see if valid
                     state := dfsState.checkValid
                 } .otherwise {
                     // out of candidates
+                    // pop off of stack
+                    cellIdx := cellStack(sp - 1.U)
+                    // move pointer back
+                    sp := sp - 1.U
                     state := dfsState.backtrack
                 }
             }
             is (dfsState.backtrack) {
-                when (sp === 0.U) {
-                    // back tracked too far = failed
-                    state := dfsState.done
-                } .otherwise {
-                    // go to previous cell
-                    sp := sp - 1.U
-                    val prev = stack(sp)
+                // get previous cell
+                val prev = cellStack(sp)
+                // restore old val
+                nextGrid(prev) := refGrid(prev)
 
-                    // restore old val
-                    nextGrid(prev) := refGrid(prev)
+                // rebuild masks after removing that guess
+                // setCandidates(nextGrid) 
+                // removing from masks
+                val row = cellIdx / 9.U
+                val col = cellIdx % 9.U
+                val sub = (row/3.U) * 3.U + (col/3.U)
+                rowMask(row) := rowMask(row) & ~candOH
+                colMask(col) := colMask(col) & ~candOH
+                subMask(sub) := subMask(sub) & ~candOH
 
-                    // rebuild masks after removing that guess
-                    setCandidates(nextGrid) 
-
+                when (hasCand) { 
                     candPtr(prev) := candPtr(prev) + 1.U
-
-                    cellIdx := prev
-                    when (candidate) { 
-                        state := dfsState.checkValid
-                        setCandidates(nextGrid)
-                    } .otherwise {// if already guessing 9th candidate
-                        state := dfsState.backtrack
-                    }
+                    state := dfsState.checkValid
+                } .otherwise {// if already guessing 9th candidate
+                    // pop off of stack
+                    cellIdx := cellStack(sp - 1.U)
+                    // move pointer back
+                    sp := sp - 1.U
+                    state := dfsState.backtrack
                 }
             }
             is (dfsState.done) {
