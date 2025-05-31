@@ -8,12 +8,13 @@ class SudokuProcessor() extends Module {
     val io = IO(new Bundle {
         val inGrid = Input(Vec(9*9, UInt(9.W)))
         val mode = Input(UInt(2.W))
+        val changed = Output(Bool())
         val done = Output(Bool())
         val outGrid = Output(Vec(9*9, UInt(9.W)))
     })
     // 
     val grid = io.inGrid
-    // copy of grid for DFS
+    // make a wire
     val nextGrid = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
     // main grid
     val refGrid = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
@@ -23,6 +24,9 @@ class SudokuProcessor() extends Module {
     val rowMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
     val colMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
     val subMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
+
+    val changed = Wire(Bool())
+    changed := false.B
 
     // find singles
     def pruneSingles() = {
@@ -44,7 +48,7 @@ class SudokuProcessor() extends Module {
                 val cells = (0 until 9).map { i =>
                     val row = (sub / 3) * 3 + (i / 3)
                     val col = (sub % 3) * 3 + (i % 3)
-                    nextGrid((row * 9) + col)
+                    grid((row * 9) + col)
                 }
                 cells.map(cell => Mux(isOneHot(cell), cell, 0.U)).reduce(_|_)
             })
@@ -58,7 +62,15 @@ class SudokuProcessor() extends Module {
                 val finalMask = ~(nextRowMask(row) | nextColMask(col) | nextSubMask(boxInd))
                 val prunedMask = cell & finalMask
 
-                nextGrid((row*9) + col) := Mux(isOneHot(cell), cell, prunedMask)
+                val isFinal = isOneHot(cell)
+                val nextVal = Mux(isFinal, cell, prunedMask)
+
+                nextGrid((row*9) + col) := nextVal
+
+                when (!isFinal && cell =/= prunedMask) {
+                changed := true.B
+                printf(p"[row=$row col=$col] cell=0b${Binary(cell)}  mask=0b${Binary(prunedMask)}\n")   
+                }
             }
         }
 
@@ -66,6 +78,7 @@ class SudokuProcessor() extends Module {
         colMask := nextColMask
         subMask := nextSubMask
         
+        // changed := nextGrid.zip(refGrid).map { case (a, b) => a =/= b }.reduce(_ || _)
         refGrid := nextGrid
     }
 
@@ -211,6 +224,11 @@ class SudokuProcessor() extends Module {
            (colMask(col) & candOH).orR ||
            (subMask(sub) & candOH).orR )
     }
+    
+    object dfsState extends ChiselEnum {
+        val idle, findEmpty, checkValid, backtrack, done = Value
+    }
+    val state = RegInit(dfsState.idle)
 
     def dfs() = {
         // printf(p"[DFS] state=$state | cellIdx=$cellIdx | cell=0b${cell}\n")
@@ -316,18 +334,14 @@ class SudokuProcessor() extends Module {
             }
         }
     }
-    
-    object dfsState extends ChiselEnum {
-        val idle, findEmpty, checkValid, backtrack, done = Value
-    }
-
-    val state = RegInit(dfsState.idle)
 
     switch(io.mode) {
         is(1.U) {pruneSingles()}
         // is(2.U) {getHiddenSingles()}
         is(2.U) {dfs()}
     }
+
+    io.changed := changed
     io.done := dfsDone
     io.outGrid := nextGrid
 }

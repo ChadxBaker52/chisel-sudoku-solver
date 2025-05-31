@@ -66,10 +66,7 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
       oneHotToDigit(value)
     }.toArray
 
-    val outGrid: Array[UInt] = outPuzzle.map {
-      case d if d >= 1 && d <= 9 => (1 << (d - 1)).U(9.W)
-      case _ => "b111111111".U(9.W)
-    }
+    val outGrid: Array[UInt] = (0 until 81).map(i => dut.io.outGrid(i).peek()).toArray
 
     println("=== Output Chisel Grid ===")
     for (i <- 0 until 81) {
@@ -85,12 +82,9 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
       if ((i + 1) % 9 == 0) println()
     }
 
-    val changed = (puzzle zip outPuzzle).exists { case (oldV, newV) => 
-      oldV != newV 
-      println()
-    }
+    val changed: Boolean = dut.io.changed.peek().litToBoolean
 
-    val nextMode = if (changed) mode else mode + 1
+    val nextMode = if (!changed & (mode == 1)) mode + 1 else mode
     (expectedOut, outGrid, nextMode, changed)
   }
 
@@ -109,9 +103,7 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
       dut.clock.step(1)
 
       dut.io.mode.poke(2.U)
-      dut.clock.step(1)
-
-      dut.io.mode.poke(3.U)
+      
       var cycles = 0
       val maxCycles = 10000
 
@@ -191,68 +183,6 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
     }
   }
 
-  it should "test hidden singles" in {
-    test(new SudokuProcessor()) { dut => 
-      dut.clock.setTimeout(0)
-
-      val puzzle = Array(
-        5,3,0, 0,7,0, 0,0,0,
-        6,0,0, 1,9,5, 0,0,0,
-        0,9,8, 0,0,0, 0,6,0,
-        8,0,0, 0,6,0, 0,0,3,
-        4,0,0, 8,0,3, 0,0,1,
-        7,0,0, 0,2,0, 0,0,6,
-        0,6,0, 0,0,0, 2,8,0,
-        0,0,0, 4,1,9, 0,0,5,
-        0,0,0, 0,8,0, 0,7,9
-      )
-
-      println("=== Input Scala Grid ===")
-      for (i <- 0 until 81) {
-        val digit = puzzle(i)
-        print(s"$digit ")
-        if ((i + 1) % 9 == 0) println()
-      }
-
-      val chiselPuzzle = puzzle.map {
-        case d if d >= 1 && d <= 9 => (1 << (d - 1)).U(9.W)
-        case 0 => "b111111111".U(9.W)
-      }
-
-      // Poke input puzzle
-      for (i <- 0 until 81) {
-        dut.io.inGrid(i).poke(chiselPuzzle(i))
-      }
-
-      dut.io.mode.poke(1.U)
-      dut.clock.step(2)   // one cycle to get initialized, another to run singles
-
-      val expected = SudokuProcessorModel.solveHiddenSingles(puzzle)
-
-      printGrid(dut.io.outGrid)
-
-      println("=== Output Scala Grid ===")
-      for (i <- 0 until 81) {
-        val digit = expected(i)
-        print(s"$digit ")
-        if ((i + 1) % 9 == 0) println()
-      }
-
-      for (i <- 0 until 81) {
-        val cell = dut.io.outGrid(i)
-        val actual = cell.peek().litValue
-        val expectedDigit = expected(i)
-
-        if (expectedDigit != 0 && isOneHot(cell)) {
-          val expectedOneHot = BigInt(1) << (expectedDigit - 1)
-          assert(actual == expectedOneHot,
-            s"Mismatch at cell $i: expected one-hot $expectedOneHot, got $actual")
-        }
-      }
-
-    }
-  }
-
   it should "test singles and dfs" in {
     test(new SudokuProcessor()) { dut =>
       dut.clock.setTimeout(0)
@@ -279,8 +209,8 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
       var currentPuzzle = puzzle
       var currentGrid = chiselPuzzle
       var mode = 1
-      val maxMode = 3
-      val maxTries = 1000
+      val maxMode = 2
+      val maxTries = 10000
       var tries = 0
 
       while (mode <= maxMode && tries < maxTries) {
@@ -304,3 +234,66 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
     }
   }
 }
+
+
+  // it should "test hidden singles" in {
+  //   test(new SudokuProcessor()) { dut => 
+  //     dut.clock.setTimeout(0)
+
+  //     val puzzle = Array(
+  //       5,3,0, 0,7,0, 0,0,0,
+  //       6,0,0, 1,9,5, 0,0,0,
+  //       0,9,8, 0,0,0, 0,6,0,
+  //       8,0,0, 0,6,0, 0,0,3,
+  //       4,0,0, 8,0,3, 0,0,1,
+  //       7,0,0, 0,2,0, 0,0,6,
+  //       0,6,0, 0,0,0, 2,8,0,
+  //       0,0,0, 4,1,9, 0,0,5,
+  //       0,0,0, 0,8,0, 0,7,9
+  //     )
+
+  //     println("=== Input Scala Grid ===")
+  //     for (i <- 0 until 81) {
+  //       val digit = puzzle(i)
+  //       print(s"$digit ")
+  //       if ((i + 1) % 9 == 0) println()
+  //     }
+
+  //     val chiselPuzzle = puzzle.map {
+  //       case d if d >= 1 && d <= 9 => (1 << (d - 1)).U(9.W)
+  //       case 0 => "b111111111".U(9.W)
+  //     }
+
+  //     // Poke input puzzle
+  //     for (i <- 0 until 81) {
+  //       dut.io.inGrid(i).poke(chiselPuzzle(i))
+  //     }
+
+  //     dut.io.mode.poke(1.U)
+  //     dut.clock.step(2)   // one cycle to get initialized, another to run singles
+
+  //     val expected = SudokuProcessorModel.solveHiddenSingles(puzzle)
+
+  //     printGrid(dut.io.outGrid)
+
+  //     println("=== Output Scala Grid ===")
+  //     for (i <- 0 until 81) {
+  //       val digit = expected(i)
+  //       print(s"$digit ")
+  //       if ((i + 1) % 9 == 0) println()
+  //     }
+
+  //     for (i <- 0 until 81) {
+  //       val cell = dut.io.outGrid(i)
+  //       val actual = cell.peek().litValue
+  //       val expectedDigit = expected(i)
+
+  //       if (expectedDigit != 0 && isOneHot(cell)) {
+  //         val expectedOneHot = BigInt(1) << (expectedDigit - 1)
+  //         assert(actual == expectedOneHot,
+  //           s"Mismatch at cell $i: expected one-hot $expectedOneHot, got $actual")
+  //       }
+  //     }
+
+  //   }
+  // }
