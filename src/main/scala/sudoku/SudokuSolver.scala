@@ -5,26 +5,45 @@ import chisel3.util._
 
 class SudokuSolver() extends Module {
     val io = IO(new Bundle {
-        val inGrid  = Input(new SudokuGrid(9))
-        val load    = Input(Bool())
+        val inGrid  = Input(Vec(9*9, UInt(9.W)))
         val start   = Input(Bool())
         val done    = Output(Bool())
-        val outGrid = Output(new SudokuGrid(9))
+        val outGrid = Output(Vec(9*9, UInt(9.W)))
     })
 
-    // STORAGE
-    val grid = Reg(new SudokuGrid(9))
+    // WIRES
+    val changed    = Wire(Bool())
+    val solved     = Wire(Bool())
+    val loadGrid   = Wire(Bool())
+    val done       = Wire(Bool())
+    val mode       = Wire(UInt(2.W))
+    val cycleCount = Wire(UInt(32.W))
 
-    when(io.load) {
-        grid := io.inGrid
-    }
+    // STORAGE
+    val grid     = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+    val nextGrid = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
 
     // CONTROLLER
     val controller = Module(new SudokuController())
-    // add io connections
+    controller.io.start      := io.start
+    controller.io.changed    := changed
+    controller.io.solved     := solved
+    loadGrid                 := controller.io.loadGrid
+    done                     := controller.io.done
+    mode                     := controller.io.mode
+    cycleCount               := controller.io.cycleCount
 
     // PROCESSOR
-    val proc = Module(new SudokuProcessor())
-    // add io connections
+    val processor = Module(new SudokuProcessor())
+    processor.io.inGrid  := grid
+    processor.io.mode    := mode
+    changed              := processor.io.changed
+    solved               := processor.io.done
+    nextGrid             := processor.io.outGrid
 
+    // OUTPUTS
+    io.done := done
+    
+    grid := Mux(loadGrid, io.inGrid, nextGrid)
+    io.outGrid := grid
 }
