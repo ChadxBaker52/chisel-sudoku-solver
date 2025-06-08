@@ -12,13 +12,22 @@ class SudokuProcessor() extends Module {
         val done = Output(Bool())
         val outGrid = Output(Vec(9*9, UInt(9.W)))
     })
-    // 
+    // input grid
     val grid = io.inGrid
-    // make a wire
-    val nextGrid = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
-    // main grid
+
+    // Wire for nextGrid from singles
+    val nextSinglesGrid = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+    nextSinglesGrid := io.inGrid
+
+    // Wire for nextGrid from DFS
+    val nextDFSGrid = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+    nextDFSGrid := io.inGrid
+
+    // Wire for nextGrid
+    val nextGrid = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+
+    // Ref grid for dfs
     val refGrid = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
-    nextGrid := io.inGrid
 
     // 27 9-bit vectors for Candidates
     val rowMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
@@ -65,12 +74,12 @@ class SudokuProcessor() extends Module {
                 val isFinal = isOneHot(cell)
                 val nextVal = Mux(isFinal, cell, prunedMask)
 
-                nextGrid((row*9) + col) := nextVal
+                nextSinglesGrid((row*9) + col) := nextVal
 
                 when (!isFinal && cell =/= prunedMask) {
-                changed := true.B
-                printf(p"[row=$row col=$col] cell=0b${Binary(cell)}  mask=0b${Binary(prunedMask)}\n")   
+                    changed := true.B
                 }
+                // printf(p"[row=$row col=$col] cell=0b${Binary(cell)}  mask=0b${Binary(prunedMask)}\n")   
             }
         }
 
@@ -79,7 +88,7 @@ class SudokuProcessor() extends Module {
         subMask := nextSubMask
         
         // changed := nextGrid.zip(refGrid).map { case (a, b) => a =/= b }.reduce(_ || _)
-        refGrid := nextGrid
+        refGrid := nextSinglesGrid
     }
 
 
@@ -199,7 +208,7 @@ class SudokuProcessor() extends Module {
     
     // DFS Variables
     val cellIdx = RegInit(0.U(log2Ceil(81).W))
-    val cell = nextGrid(cellIdx)
+    val cell = nextDFSGrid(cellIdx)
     val candPtr = RegInit(VecInit(Seq.fill(81)(0.U(4.W))))
     val cellStack = Reg(Vec(81, UInt(7.W)))
     val sp = RegInit(0.U(7.W))
@@ -270,8 +279,8 @@ class SudokuProcessor() extends Module {
             }
             is (dfsState.checkValid) {
                 when (valid) {
-                    // printf(p"[CELL] cellIdx=0x${cellIdx} set to cand=0x${cand+1.U}\n")
-                    nextGrid(cellIdx) := candOH
+                    printf(p"[CELL] cellIdx=0x${cellIdx} set to cand=0x${cand+1.U}\n")
+                    nextDFSGrid(cellIdx) := candOH
                     cellStack(sp) := cellIdx
                     sp := sp + 1.U  
                     
@@ -306,7 +315,7 @@ class SudokuProcessor() extends Module {
                 // get previous cell
                 val prev = cellStack(sp)
                 // restore old val
-                nextGrid(prev) := refGrid(prev)
+                nextDFSGrid(prev) := refGrid(prev)
 
                 // rebuild masks after removing that guess
                 // setCandidates(nextGrid) 
@@ -336,9 +345,15 @@ class SudokuProcessor() extends Module {
     }
 
     switch(io.mode) {
-        is(1.U) {pruneSingles()}
+        is(1.U) {
+            pruneSingles()
+            nextGrid := nextSinglesGrid
+        }
         // is(2.U) {getHiddenSingles()}
-        is(2.U) {dfs()}
+        is(2.U) {
+            dfs()
+            nextGrid := nextDFSGrid
+        }
     }
 
     io.changed := changed
