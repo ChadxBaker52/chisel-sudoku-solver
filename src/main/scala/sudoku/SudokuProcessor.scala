@@ -109,102 +109,6 @@ class SudokuProcessor() extends Module {
             }
         }
     }
-
-    def getHiddenSingles() = {
-        // Create hidden masks
-        val hRowMask = WireInit(VecInit(Seq.fill(9)(0.U(9.W))))
-        val hColMask = WireInit(VecInit(Seq.fill(9)(0.U(9.W))))
-        val hSubMask = WireInit(VecInit(Seq.fill(9)(0.U(9.W))))
-
-        // Counting cells
-        // ----------------------------------------------------
-        // Counting cells in each row, col, and sub
-        for (row <- 0 until 9) {
-            for (col <- 0 until 9) {
-                val cell = grid(row * 9 + col).asBools
-                val sub = (row/3)*3 + col/3
-                for (i <- 0 until 9) {
-                    when (cell(i)) {
-                        unsolvedCount(row)(i) := unsolvedCount(row)(i) + 1.U
-                        unsolvedCount(col+9)(i) := unsolvedCount(col+9)(i) + 1.U
-                        unsolvedCount(sub+18)(i) := unsolvedCount(sub+18)(i) + 1.U
-                    }
-                }
-            }
-        }
-
-        // ----------------------------------------------------
-
-        // Checking for singles
-        // ----------------------------------------------------
-        // checking rows for singles
-        for (row <- 0 until 9) {
-            val bits = Wire(Vec(9, Bool()))
-            for (i <- 0 until 9) {
-                bits(i) := unsolvedCount(row)(i) === 1.U
-            }
-            hRowMask(row) := bits.asUInt  
-        }
-
-        // checking columns for singles
-        for (col <- 9 until 18) {
-            val bits = Wire(Vec(9, Bool()))
-            for (i <- 0 until 9) {
-                bits(i) := unsolvedCount(col)(i) === 1.U
-            }
-            hColMask(col-9) := bits.asUInt
-        }
-
-        // checking subgrids for singles
-        for (sub <- 18 until 27) {
-            val bits = Wire(Vec(9, Bool()))
-            for (i <- 0 until 9) {
-                bits(i) := unsolvedCount(sub)(i) === 1.U
-            }
-            hSubMask(sub-18) := bits.asUInt
-        }
-        // ----------------------------------------------------
-
-        // Updating cells
-        // ----------------------------------------------------
-        // Updating cells by row
-        for (row <- 0 until 9) {
-            for (col <- 0 until 9) {
-                val cell = grid((row*9) + col)
-                val mask = hRowMask(row)
-                when ((mask & cell) =/= 0.U) {
-                    nextGrid((row*9) + col) := mask
-                }
-            }
-        }
-
-        // Updating cells by column
-        for (col <- 0 until 9) {
-            for (row <- 0 until 9) {
-                val cell = grid((row*9) + col)
-                val mask = hColMask(col)
-                when ((mask & cell) =/= 0.U) {
-                    nextGrid((row*9) + col) := mask
-                }
-            }
-        }
-
-        // Updating cells by sub
-        for (row <- 0 until 9) {
-            for (col <- 0 until 9) {
-                val cell = grid((row*9) + col)
-                val sub = ((row / 3) * 3) + (col / 3)
-                val mask = hSubMask(sub)
-                when ((mask & cell) =/= 0.U) {
-                    nextGrid((row*9) + col) := mask
-                }
-            }
-        }
-        // ----------------------------------------------------
-
-        // update refGrid with new values
-        refGrid := nextGrid
-    }
     
     // DFS Variables
     val cellIdx = RegInit(0.U(log2Ceil(81).W))
@@ -349,7 +253,6 @@ class SudokuProcessor() extends Module {
             pruneSingles()
             nextGrid := nextSinglesGrid
         }
-        // is(2.U) {getHiddenSingles()}
         is(2.U) {
             dfs()
             nextGrid := nextDFSGrid
