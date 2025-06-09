@@ -19,6 +19,11 @@ lazy val root = (project in file("."))
       "-P:chiselplugin:genBundleElements",
     ),
     addCompilerPlugin("edu.berkeley.cs" % "chisel3-plugin" % chiselVersion cross CrossVersion.full),
+    Test / fork := true,
+    Test / javaOptions ++= Seq(
+      "-Xms2G",  // initial heap
+      "-Xmx4G"   // max heap
+    )
   )
 
 libraryDependencies += "org.scalatestplus" %% "junit-4-13" % "3.2.15.0" % "test"
