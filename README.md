@@ -8,12 +8,13 @@ It performs classic solving techniques (naked & hidden singles) and DFS backtrac
 ## Overview
 
 - **SudokuGrid**: Defines a 9×9 grid as `Vec(81, UInt(9.W))` with helper methods for one-hot encoding.
+- **SudokuSolver** Top Module that connects SudokuController and SudokuProcessor
 - **SudokuProcessor**: Core passes for
   - Candidate pruning (bitmask elimination)
   - Naked singles
   - Hidden singles (Work in Progress)
   - DFS backtracking
-- **SudokuController**: Top-level FSM that drives `SudokuProcessor` through modes, counts cycles, and asserts `done`.
+- **SudokuController**: FSM that drives `SudokuProcessor` through modes, counts cycles, and asserts `done`.
 - **Test Utilities**: Automatic fallback between Verilator and Treadle backends.
 - **Scala Model**: (WIP) Pure-Scala solver for reference and golden testing.
 
