@@ -18,6 +18,11 @@ jobs:
         with:
           jvm: adopt:11
           apps: sbt
+      - name: Install Verilator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator
+          verilator --version
       - name: SBT Test
         run: sbt test
       # - name: mill Test
