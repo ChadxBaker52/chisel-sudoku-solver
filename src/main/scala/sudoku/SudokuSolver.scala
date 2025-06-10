@@ -8,6 +8,7 @@ class SudokuSolver() extends Module {
         val inGrid  = Input(Vec(9*9, UInt(9.W)))
         val start   = Input(Bool())
         val done    = Output(Bool())
+        val cycles  = Output(UInt(32.W))
         val outGrid = Output(Vec(9*9, UInt(9.W)))
     })
 
@@ -43,6 +44,7 @@ class SudokuSolver() extends Module {
 
     // OUTPUTS
     io.done := done
+    io. cycles := cycleCount
     
     grid := Mux(loadGrid, io.inGrid, nextGrid)
     io.outGrid := grid
