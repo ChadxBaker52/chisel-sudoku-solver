@@ -26,6 +26,6 @@ jobs:
           sudo apt-get install -y verilator
           verilator --version
       - name: SBT Test
-        run: sbt test
+        run: VERILATOR_NO_PCH=1 sbt test
       # - name: mill Test
       #   run: mill _.test
