@@ -19,7 +19,7 @@ class SudokuSolverTester extends AnyFlatSpec with ChiselScalatestTester {
     else "b111111111".U
   }
 
-  // Pretty-print for debugging
+  // Print for debugging
   def printGrid(grid: Vec[UInt]): Unit = {
     println("=== Output Sudoku Grid ===")
     grid.grouped(9).foreach { row =>
@@ -74,7 +74,6 @@ class SudokuSolverTester extends AnyFlatSpec with ChiselScalatestTester {
         dut.io.start.poke(false.B)
 
         // wait for done in 1k‐cycle steps
-        var remaining = 1_000_000
         while (!dut.io.done.peek().litToBoolean) {
           dut.clock.step(1000)
           printGrid(dut.io.outGrid)
