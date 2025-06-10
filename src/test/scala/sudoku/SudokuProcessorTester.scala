@@ -4,6 +4,7 @@ import chisel3._
 import chiseltest._
 import chiseltest.simulator.VerilatorBackendAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
+import sudoku.SudokuTestUtils.chooseBackend
 
 class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
   def oneHotToDigit(oneHot: BigInt): Int = {
@@ -83,7 +84,7 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
 
   it should "test singles" in {
     test(new SudokuProcessor())
-      .withAnnotations(Seq(VerilatorBackendAnnotation))
+      .withAnnotations(chooseBackend())
       .apply{ dut => 
       dut.clock.setTimeout(0)
 
@@ -146,7 +147,7 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
 
   it should "test dfs on empty grid" in {
     test(new SudokuProcessor())
-    .withAnnotations(Seq(VerilatorBackendAnnotation))
+    .withAnnotations(chooseBackend())
     .apply { dut =>
       dut.clock.setTimeout(0)
 
@@ -189,7 +190,7 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
 
   it should "test singles and dfs" in {
     test(new SudokuProcessor())
-      .withAnnotations(Seq(VerilatorBackendAnnotation))
+      .withAnnotations(chooseBackend())
       .apply{ dut =>
       dut.clock.setTimeout(0)
 

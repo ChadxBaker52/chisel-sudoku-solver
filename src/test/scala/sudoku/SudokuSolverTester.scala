@@ -4,6 +4,7 @@ import chisel3._
 import chiseltest._
 import chiseltest.simulator.VerilatorBackendAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
+import sudoku.SudokuTestUtils.chooseBackend
 
 class SudokuSolverTester extends AnyFlatSpec with ChiselScalatestTester {
   // Helper to decode a 9-bit one-hot back to 0–9
@@ -46,7 +47,7 @@ class SudokuSolverTester extends AnyFlatSpec with ChiselScalatestTester {
   behavior of "SudokuSolver"
   it should "solve this puzzle" in {
     test(new SudokuSolver())
-      .withAnnotations(Seq(VerilatorBackendAnnotation))
+      .withAnnotations(chooseBackend())
       .apply{ dut =>
         // turn off prints in the DUT or guard them in your code!
         dut.clock.setTimeout(0)
