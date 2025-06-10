@@ -69,13 +69,6 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
 
     val outGrid: Array[UInt] = (0 until 81).map(i => dut.io.outGrid(i).peek()).toArray
 
-    // println("=== Output Chisel Grid ===")
-    // for (i <- 0 until 81) {
-    //   val digit = outPuzzle(i)
-    //   print(s"$digit ")
-    //   if ((i + 1) % 9 == 0) println()
-    // }
-
     val changed: Boolean = dut.io.changed.peek().litToBoolean
 
     val nextMode = if (!changed & (mode == 1)) mode + 1 else mode
@@ -162,10 +155,10 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
       var currentGrid = chiselPuzzle
       var mode = 1
       val maxMode = 2
-      val maxTries = 1000000
+      val maxTries = 100
       var tries = 0
 
-      while (!dut.io.done.peek().litToBoolean) {
+      while (!dut.io.done.peek().litToBoolean && tries < maxTries) {
         // println(s"\n----- cycle $tries -----\n")
         val (nextPuzzle, nextGrid, nextMode, changed) = doProcessorTest(dut, currentPuzzle, currentGrid, mode)
         // println(s"\nmode: $mode    changed: $changed\n")
@@ -217,14 +210,17 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
       var currentGrid = chiselPuzzle
       var mode = 1
       val maxMode = 2
+      val maxTries = 100
+      var tries = 0
 
-      while (!dut.io.done.peek().litToBoolean) {
+      while (!dut.io.done.peek().litToBoolean && tries < maxTries) {
         // println(s"\n----- cycle $tries -----\n")
         val (nextPuzzle, nextGrid, nextMode, changed) = doProcessorTest(dut, currentPuzzle, currentGrid, mode)
         // println(s"\nmode: $mode    changed: $changed\n")
         currentPuzzle = nextPuzzle
         currentGrid = nextGrid
         mode = nextMode
+        tries += 1
       }
 
       // Final assertion

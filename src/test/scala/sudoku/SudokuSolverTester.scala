@@ -73,11 +73,15 @@ class SudokuSolverTester extends AnyFlatSpec with ChiselScalatestTester {
         dut.io.start.poke(true.B)
         dut.clock.step()
         dut.io.start.poke(false.B)
+        
+        val maxTries = 1000
+        var tries = 0
 
         // wait for done in 1k‐cycle steps
-        while (!dut.io.done.peek().litToBoolean) {
+        while (!dut.io.done.peek().litToBoolean && tries < maxTries) {
           dut.clock.step(1000)
           printGrid(dut.io.outGrid)
+          tries += 1
         }
         assert(dut.io.done.peek().litToBoolean, "Solver did not finish in time")
         
