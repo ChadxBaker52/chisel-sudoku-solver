@@ -29,6 +29,9 @@ class SudokuProcessor() extends Module {
     // Ref grid for dfs
     val refGrid = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
 
+    // final grid
+    val finalGrid = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+
     // 27 9-bit vectors for Candidates
     val rowMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
     val colMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
@@ -160,13 +163,6 @@ class SudokuProcessor() extends Module {
                 state   := dfsState.findEmpty
             }
             is (dfsState.findEmpty) {
-                // val row = cellIdx / 9.U
-                // val col = cellIdx % 9.U
-                // val sub = (row/3.U) * 3.U + (col/3.U)
-                // printf("[MASKS]  ")
-                // printf(p"rowMask=0b${Binary(rowMask(row))}  ")   
-                // printf(p"colMask=0b${Binary(colMask(col))}  ")
-                // printf(p"subMask=0b${Binary(subMask(sub))}\n")
                 when (empty) {
                     // found empty cell
                     // start at first candidate
@@ -183,7 +179,7 @@ class SudokuProcessor() extends Module {
             }
             is (dfsState.checkValid) {
                 when (valid) {
-                    printf(p"[CELL] cellIdx=0x${cellIdx} set to cand=0x${cand+1.U}\n")
+                    // printf(p"[CELL] cellIdx=0x${cellIdx} set to cand=0x${cand+1.U}\n")
                     nextDFSGrid(cellIdx) := candOH
                     cellStack(sp) := cellIdx
                     sp := sp + 1.U  
@@ -243,6 +239,7 @@ class SudokuProcessor() extends Module {
                 }
             }
             is (dfsState.done) {
+                finalGrid := nextDFSGrid
                 dfsDone := true.B
             }
         }
@@ -261,5 +258,5 @@ class SudokuProcessor() extends Module {
 
     io.changed := changed
     io.done := dfsDone
-    io.outGrid := nextGrid
+    io.outGrid := Mux(dfsDone, finalGrid, nextGrid)
 }
