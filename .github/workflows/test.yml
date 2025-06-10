@@ -20,12 +20,18 @@ jobs:
           apps: sbt
       - name: Install C++ build tools
         run: sudo apt-get install -y build-essential
-      - name: Install Verilator
+      - name: Install Verilator from source
         run: |
-          sudo apt-get update
-          sudo apt-get install -y verilator
+          sudo apt-get install -y git autoconf flex bison build-essential
+          git clone https://github.com/verilator/verilator.git
+          cd verilator
+          git checkout v5.008  # or latest stable
+          autoconf
+          ./configure
+          make -j4
+          sudo make install
           verilator --version
       - name: SBT Test
-        run: VERILATOR_NO_PCH=1 sbt test
+        run: sbt test
       # - name: mill Test
       #   run: mill _.test
