@@ -96,6 +96,7 @@ If Verilator is not found, tests automatically fall back to Treadle.
     build.sbt                     — Project configuration.
     src/main/scala/sudoku/
         SudokuGrid.scala            — One-hot grid type & helpers.
+        SudokuSolver.scala          — Top Module
         SudokuProcessor.scala       — Core solving passes.
         SudokuController.scala      — FSM to sequence solving passes and assert done.
     src/test/scala/sudoku/
