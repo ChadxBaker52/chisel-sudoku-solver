@@ -4,80 +4,83 @@ import chisel3._
 import chisel3.util._
 import SudokuUtils._
 
-class SudokuProcessor() extends Module {
+class SudokuProcessor(gridsize: Int) extends Module {
     val io = IO(new Bundle {
-        val inGrid = Input(Vec(9*9, UInt(9.W)))
+        val inGrid = Input(Vec(gridsize*gridsize, UInt(gridsize.W)))
         val mode = Input(UInt(2.W))
         val changed = Output(Bool())
         val done = Output(Bool())
-        val outGrid = Output(Vec(9*9, UInt(9.W)))
+        val outGrid = Output(Vec(gridsize*gridsize, UInt(gridsize.W)))
     })
     // input grid
     val grid = io.inGrid
 
     // Wire for nextGrid from singles
-    val nextSinglesGrid = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+    val nextSinglesGrid = WireInit(VecInit(Seq.fill(gridsize*gridsize)(0.U(gridsize.W))))
     nextSinglesGrid := io.inGrid
 
     // Wire for nextGrid from DFS
-    val nextDFSGrid = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+    val nextDFSGrid = WireInit(VecInit(Seq.fill(gridsize*gridsize)(0.U(gridsize.W))))
     nextDFSGrid := io.inGrid
 
     // Wire for nextGrid
-    val nextGrid = WireInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+    val nextGrid = WireInit(VecInit(Seq.fill(gridsize*gridsize)(0.U(gridsize.W))))
 
     // Ref grid for dfs
-    val refGrid = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+    val refGrid = RegInit(VecInit(Seq.fill(gridsize*gridsize)(0.U(gridsize.W))))
 
     // final grid
-    val finalGrid = RegInit(VecInit(Seq.fill(9*9)(0.U(9.W))))
+    val finalGrid = RegInit(VecInit(Seq.fill(gridsize*gridsize)(0.U(gridsize.W))))
 
     // 27 9-bit vectors for Candidates
-    val rowMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
-    val colMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
-    val subMask = RegInit(VecInit(Seq.fill(9)(0.U(9.W))))
+    val rowMask = RegInit(VecInit(Seq.fill(gridsize)(0.U(gridsize.W))))
+    val colMask = RegInit(VecInit(Seq.fill(gridsize)(0.U(gridsize.W))))
+    val subMask = RegInit(VecInit(Seq.fill(gridsize)(0.U(gridsize.W))))
 
     val changed = Wire(Bool())
     changed := false.B
+
+    // Scala Constants
+    val N = math.sqrt(gridsize).toInt
 
     // find singles
     def pruneSingles() = {
         // new 27 9-bit vectors for Candidates
         val nextRowMask = WireInit(
-            VecInit((0 until 9).map { row =>
-                val rowCells = (0 until 9).map(col => grid(row*9 + col))
+            VecInit((0 until gridsize).map { row =>
+                val rowCells = (0 until gridsize).map(col => grid(row*gridsize + col))
                 rowCells.map(cell => Mux(isOneHot(cell), cell, 0.U)).reduce(_|_)
             })
         )
         val nextColMask = WireInit(
-            VecInit((0 until 9).map { col =>
-                val colCells = (0 until 9).map(row => grid(row*9 + col))
+            VecInit((0 until gridsize).map { col =>
+                val colCells = (0 until gridsize).map(row => grid(row*gridsize + col))
                 colCells.map(cell => Mux(isOneHot(cell), cell, 0.U)).reduce(_|_)
             })
         )
         val nextSubMask = WireInit(
-            VecInit((0 until 9).map { sub =>
-                val cells = (0 until 9).map { i =>
-                    val row = (sub / 3) * 3 + (i / 3)
-                    val col = (sub % 3) * 3 + (i % 3)
-                    grid((row * 9) + col)
+            VecInit((0 until gridsize).map { sub =>
+                val cells = (0 until gridsize).map { i =>
+                    val row = (sub / N) * N + (i / N)
+                    val col = (sub % N) * N + (i % N)
+                    grid((row * gridsize) + col)
                 }
                 cells.map(cell => Mux(isOneHot(cell), cell, 0.U)).reduce(_|_)
             })
         )
 
         // prune mask by or'ing row, col, and sub together
-        for (row <- 0 until 9) {
-            for (col <- 0 until 9) {
-                val boxInd = ((row / 3)) * 3 + (col / 3)
-                val cell = grid((row*9) + col)
+        for (row <- 0 until gridsize) {
+            for (col <- 0 until gridsize) {
+                val boxInd = ((row / N)) * N + (col / N)
+                val cell = grid((row*gridsize) + col)
                 val finalMask = ~(nextRowMask(row) | nextColMask(col) | nextSubMask(boxInd))
                 val prunedMask = cell & finalMask
 
                 val isFinal = isOneHot(cell)
                 val nextVal = Mux(isFinal, cell, prunedMask)
 
-                nextSinglesGrid((row*9) + col) := nextVal
+                nextSinglesGrid((row*gridsize) + col) := nextVal
 
                 when (!isFinal && cell =/= prunedMask) {
                     changed := true.B
@@ -96,44 +99,44 @@ class SudokuProcessor() extends Module {
 
 
     // 27 Vectors full of 9 4-bit vectors used for Hidden Singles
-    val unsolvedCount = RegInit(VecInit(Seq.fill(27)(VecInit(Seq.fill(9)(0.U(4.W))))))
+    val unsolvedCount = RegInit(VecInit(Seq.fill(gridsize*N)(VecInit(Seq.fill(gridsize)(0.U(log2Ceil(gridsize).W))))))
 
     // Counting cells in each row, col, and sub
-    for (row <- 0 until 9) {
-        for (col <- 0 until 9) {
-            val cell = grid(row * 9 + col).asBools
-            val sub = (row/3)*3 + col/3
-            for (i <- 0 until 9) {
+    for (row <- 0 until gridsize) {
+        for (col <- 0 until gridsize) {
+            val cell = grid(row * gridsize + col).asBools
+            val sub = ((row / N)) * N + (col / N)
+            for (i <- 0 until gridsize) {
                 when (cell(i)) {
                     unsolvedCount(row)(i) := unsolvedCount(row)(i) + 1.U
-                    unsolvedCount(col+9)(i) := unsolvedCount(col+9)(i) + 1.U
-                    unsolvedCount(sub+18)(i) := unsolvedCount(sub+18)(i) + 1.U
+                    unsolvedCount(col+gridsize)(i) := unsolvedCount(col+gridsize)(i) + 1.U
+                    unsolvedCount(sub+(gridsize*2))(i) := unsolvedCount(sub+(gridsize*2))(i) + 1.U
                 }
             }
         }
     }
     
     // DFS Variables
-    val cellIdx = RegInit(0.U(log2Ceil(81).W))
+    val cellIdx = RegInit(0.U(log2Ceil(gridsize*gridsize).W))
     val cell = nextDFSGrid(cellIdx)
-    val candPtr = RegInit(VecInit(Seq.fill(81)(0.U(4.W))))
-    val cellStack = Reg(Vec(81, UInt(7.W)))
-    val sp = RegInit(0.U(7.W))
+    val candPtr = RegInit(VecInit(Seq.fill(gridsize*gridsize)(0.U(log2Ceil(gridsize).W))))
+    val cellStack = Reg(Vec(gridsize*gridsize, UInt(log2Ceil(gridsize*gridsize).W)))
+    val sp = RegInit(0.U(log2Ceil(gridsize*gridsize).W))
     val dfsDone = RegInit(false.B)
     val cand = candPtr(cellIdx)
     // val candValid = cand > 0.U && cand <= 9.U
     // val safeCand = Mux(candValid, cand - 1.U, 0.U)
 
     val empty = ~isOneHot(cell)
-    val candOH = UIntToOH(cand)(8, 0)
+    val candOH = UIntToOH(cand)(gridsize, 0)
     val valid = isValidCell(cellIdx, candOH)
-    val hasCand = candPtr(cellIdx) < 8.U
-    val traversed = cellIdx === 81.U
+    val hasCand = candPtr(cellIdx) < ((gridsize*gridsize).U - 1.U)
+    val traversed = cellIdx === (gridsize*gridsize).U
 
     def isValidCell(idx: UInt, candOH: UInt): Bool = {
-        val row = idx / 9.U
-        val col = idx % 9.U
-        val sub = ((row / 3.U) * 3.U) + (col / 3.U)
+        val row = idx / gridsize.U
+        val col = idx % gridsize.U
+        val sub = ((row / N.U) * N.U) + (col / N.U)
 
         // see if candidate is already in row, col, or sub
         !( (rowMask(row) & candOH).orR ||
@@ -157,7 +160,7 @@ class SudokuProcessor() extends Module {
                 // initialize everything
                 cellIdx := 0.U
                 sp := 0.U
-                for (i <- 0 until 81) candPtr(i) := 0.U
+                for (i <- 0 until (gridsize*gridsize)) candPtr(i) := 0.U
 
                 // see if cell is empty
                 state   := dfsState.findEmpty
@@ -185,9 +188,9 @@ class SudokuProcessor() extends Module {
                     sp := sp + 1.U  
                     
                     // adding to masks
-                    val row = cellIdx / 9.U
-                    val col = cellIdx % 9.U
-                    val sub = (row/3.U) * 3.U + (col/3.U)
+                    val row = cellIdx / gridsize.U
+                    val col = cellIdx % gridsize.U
+                    val sub = (row/N.U) * N.U + (col/N.U)
                     rowMask(row) := rowMask(row) | candOH
                     colMask(col) := colMask(col) | candOH
                     subMask(sub) := subMask(sub) | candOH
@@ -220,9 +223,9 @@ class SudokuProcessor() extends Module {
                 // rebuild masks after removing that guess
                 // setCandidates(nextGrid) 
                 // removing from masks
-                val row = cellIdx / 9.U
-                val col = cellIdx % 9.U
-                val sub = (row/3.U) * 3.U + (col/3.U)
+                val row = cellIdx / gridsize.U
+                val col = cellIdx % gridsize.U
+                val sub = (row/N.U) * N.U + (col/N.U)
                 rowMask(row) := rowMask(row) & ~candOH
                 colMask(col) := colMask(col) & ~candOH
                 subMask(sub) := subMask(sub) & ~candOH

@@ -46,7 +46,7 @@ class SudokuSolverTester extends AnyFlatSpec with ChiselScalatestTester {
 
   behavior of "SudokuSolver"
   it should "solve this puzzle" in {
-    test(new SudokuSolver())
+    test(new SudokuSolver(9))
       .withAnnotations(chooseBackend())
       .apply{ dut =>
         // turn off prints in the DUT or guard them in your code!
