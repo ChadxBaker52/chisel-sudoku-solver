@@ -107,7 +107,7 @@ class SudokuProcessor(gridsize: Int) extends Module {
     val empty = ~isOneHot(cell)
     val candOH = UIntToOH(cand, gridsize)
     val valid = isValidCell(cellIdx, candOH)
-    val hasCand = candPtr(cellIdx) < gridsize.U
+    val hasCand = candPtr(cellIdx) < ((gridsize).U - 1.U)
     val traversed = cellIdx === (gridsize*gridsize).U
 
     def isValidCell(idx: UInt, candOH: UInt): Bool = {
