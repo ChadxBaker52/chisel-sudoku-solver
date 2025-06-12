@@ -58,9 +58,9 @@ To run all Test
 To run individual test 
 
     sbt
-    testOnly SudokuProcessorTester
-    testOnly SudokuSolverTester
-    testOnly SudokuControllerTester
+    testOnly sudoku.SudokuProcessorTester
+    testOnly sudoku.SudokuSolverTester
+    testOnly sudoku.SudokuControllerTester
 
 
 ## Test Details
