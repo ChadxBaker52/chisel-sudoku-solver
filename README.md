@@ -104,3 +104,7 @@ If Verilator is not found, tests automatically fall back to Treadle.
         SudokuSolverTester.scala    — Full top-level solver tests.
         SudokuControllerTester.scala— Tests the FSM + controller flow.
         SudokuTestUtils.scala       — Helper functions for backend selection.
+
+### Acknowledgments
+This project was inspired by the paper:
+K. G. Ciantar and O. Casha, "Implementation of a Sudoku Puzzle Solver on a FPGA," CoDIT 2023.
