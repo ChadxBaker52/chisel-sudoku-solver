@@ -5,9 +5,6 @@ import chiseltest._
 import org.scalatest.flatspec.AnyFlatSpec
 
 class SudokuControllerTester extends AnyFlatSpec with ChiselScalatestTester {
-  // def simController() = {
-
-  // }
 
   behavior of "SudokuController" 
   it should "Go through all states (Idle -> Single -> Hidden -> DFS -> Done)" in {
