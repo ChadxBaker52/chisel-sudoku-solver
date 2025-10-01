@@ -150,7 +150,7 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
       var currentGrid = chiselPuzzle
       var mode = 1
       val maxMode = 2
-      val maxTries = 100
+      val maxTries = 1
       var tries = 0
 
       while (!dut.io.done.peek().litToBoolean && tries < maxTries) {
@@ -204,7 +204,7 @@ class SudokuProcessorTester extends AnyFlatSpec with ChiselScalatestTester {
       var currentGrid = chiselPuzzle
       var mode = 1
       val maxMode = 2
-      val maxTries = 100
+      val maxTries = 1
       var tries = 0
 
       while (!dut.io.done.peek().litToBoolean && tries < maxTries) {

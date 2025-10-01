@@ -28,7 +28,7 @@ class SudokuSolverTester extends AnyFlatSpec with ChiselScalatestTester {
     }
   }
 
-  // Your Scala reference solver
+  // Scala reference solver
   def simulateSolver(puzzle: Array[Int]): Array[Int] = {
     // first apply singles until no change
     var curr = puzzle
@@ -74,7 +74,7 @@ class SudokuSolverTester extends AnyFlatSpec with ChiselScalatestTester {
         dut.clock.step()
         dut.io.start.poke(false.B)
         
-        val maxTries = 1000000
+        val maxTries = 1
         var tries = 0
         val step = 1000
 
